@@ -1,0 +1,204 @@
+---
+title: "Universidad de Costa Rica <br> Estadística Espacial"
+subtitle: "Proyecto 4"
+author: "Fabián Hernández <br> Fiorella Laurito"
+output: 
+    html_document:
+      fig_caption: true
+      css: custom.css
+      code_folding: hide
+      theme: cerulean
+      highlight: tango
+---
+
+<script>
+   $(document).ready(function() {
+     $head = $('#header');
+     $head.prepend('<img src=\"logo.png\" style=\"float: right;width: 250px;\"/>')
+   });
+</script>
+
+# {.tabset .tabset-fade .tabset-pills}
+
+## Introducción
+
+## Resultados
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(comment=" ",cache=T)
+
+library(sf)
+library(spData)
+library(tidyverse)
+
+library(maptools)
+library(spdep)
+library(leaflet)
+library(RColorBrewer)
+
+# Function to get the earth distance beetween two points in the map
+earth.dist <- function (long1, lat1, long2, lat2)
+{
+rad <- pi/180
+a1 <- lat1 * rad
+a2 <- long1 * rad
+b1 <- lat2 * rad
+b2 <- long2 * rad
+dlon <- b2 - a2
+dlat <- b1 - a1
+a <- (sin(dlat/2))^2 + cos(a1) * cos(b1) * (sin(dlon/2))^2
+c <- 2 * atan2(sqrt(a), sqrt(1 - a))
+R <- 6372.79
+d <- R * c
+return(d)
+}
+
+# Function to calculate the RMSE value
+RMSE <- function(observed, predicted) {
+  sqrt(mean((predicted - observed)^2, na.rm=TRUE))
+}
+
+```
+
+
+
+```{r}
+# Load Costa Rica Cantones
+Cantones.sf <- sf::st_read("Cantones_de_Costa_Rica.shp") 
+
+path <- "Cantones_de_Costa_Rica.shp"
+Cantones <- shapefile(path)
+
+Cantones.sf<-Cantones.sf %>% sf::st_transform(crs = sf::st_crs(4326))
+
+#perdidas
+
+
+perdidas<-read.csv(file = "datos_perdida.csv",sep=";",dec=",", check.names = F, encoding = "UTF-8")
+names(perdidas)<-iconv(names(perdidas), to = "ASCII", sub = "")
+dim(perdidas)
+head(perdidas)
+
+perdidas$p<-as.factor(perdidas$p)
+perdidas$c<-as.factor(perdidas$c)
+
+perd_cantones_sf<-Cantones.sf %>% left_join(perdidas %>% dplyr::select(-"perdida"), 
+                                by=c("COD_PROV"="p",
+                                     "COD_CANT"="c"))
+
+perd_cantones<-as(perd_cantones_sf, 'Spatial')
+
+
+# add the right proyection
+
+projection(perd_cantones)=projection(Cantones)  
+
+#Quitar la isla del Coco
+
+perd_cantones@bbox<-as.matrix(rbind(c(-85.97907,-82.55232),c(8.039627,11.21976)))
+
+perd_cantones_sf<-sf::st_as_sf(perd_cantones)
+
+
+```
+
+
+Entre las variables que se incluirán en el análisis están:
+
+* `est_fcs`: el recuento estimado de ejecuciones hipotecarias desde enero de 2007 hasta junio de 2008
+
+EXPLICAR LAS VARIABLES
+
+Para obtener estadísticas resumidas de las variables de interés, se utliza la función `summary`. Por ejemplo,
+
+```{r}
+summary(perd_cantones@data$perdida_mill)
+```
+
+El siguiente comando proporciona una traza de las cantones:
+
+```{r}
+plot(perd_cantones)
+```
+
+Con el paquete `leafleat` se pueden hacer mejores mapas, ya que se genera un mapa interactivo que se puede representar en páginas HTML.
+
+```{r}
+leaflet(perd_cantones) %>%
+  addPolygons(stroke = FALSE, fillOpacity = 0.5, smoothFactor = 0.5) %>%
+  addTiles() #adds a map tile, the default is OpenStreetMap
+```
+
+Para agregar una escala de color se utliza el paquete `RColorBrewer`:
+
+```{r}
+qpal<-colorQuantile("OrRd", perd_cantones@data$perdida_mill, n=9) 
+
+leaflet(perd_cantones) %>%
+  addPolygons(stroke = FALSE, fillOpacity = .8, smoothFactor = 0.2, color = ~qpal(perdida_mill)
+  ) %>%
+  addTiles()
+```
+
+
+### Mínimos cuadrados ordinarios
+
+El enfoque tradicional, por muchos años, ha sido ignorar la dependencia espacial de los datos y simplemente ejecutar una regresión por mínimos cuadrados ordinarios:
+
+$y=X\beta+\epsilon$
+
+```{r}
+
+regresion<-lm(perdida_mill~IDS+poblac_total#+
+                #IGM_Desarrollo_Gestion_Inst+IGM_Planif_Partic_Ciud_Rend_Cuent+
+                #IGM_Gestion_Desarrollo_Amb+IGM_Gestion_Servicios_Econ+IGM_Gestion_Serv_Social
+              , data=perd_cantones@data)
+summary(regresion)
+
+```
+
+### Modelado de dependencia espacial
+
+```{r}
+list.queen<-poly2nb(perd_cantones, queen=TRUE)
+W<-nb2listw(list.queen, style="W", zero.policy=TRUE)
+W
+```
+
+Para observar los enlaces de vecinos creados, se puede utlizar la finción `plot`:
+
+```{r}
+plot(perd_cantones)
+plot(W,coordinates(perd_cantones),col="red",add=TRUE)
+```
+
+
+Para obtener la matriz ponderada basada en distancias, se utilizan dos funciones: `coordinates` que capturan las coordenadas de los centroides de los polígonos de las secciones censales y `dnearneigh` que identifican los vecinos entre dos distancias en kilómetros medidos utilizando la distancia euclidiana. Por ejemplo, para encontrar vecinos dentro de 1 kilómetro se realiza de la siguiente manera:
+
+
+```{r}
+coords<-coordinates(perd_cantones)
+W_dist<-dnearneigh(coords,0,1,longlat = FALSE)
+```
+
+
+```{r}
+plot(perd_cantones)
+plot(W_dist,coordinates(perd_cantones),col="red",add=TRUE)
+```
+
+### Prueba de autocorrelación espacial
+
+#### Prueba I de Moran
+
+Se desarrolló originalmente como un análogo bidimensional de la prueba de Durbin-Watson, para realizar la prueba se necesita un objeto de regresión `lm` y la matriz de peso espacial:
+
+```{r}
+moran.lm<-lm.morantest(regresion, W, alternative="two.sided")
+print(moran.lm)
+```
+
+
+
+
+
