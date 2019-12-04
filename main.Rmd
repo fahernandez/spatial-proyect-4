@@ -5,7 +5,7 @@ author: "Fabián Hernández <br> Fiorella Laurito"
 output: 
     html_document:
       fig_caption: true
-      css: custom.css
+      css: layout/custom.css
       code_folding: hide
       theme: cerulean
       highlight: tango
@@ -14,7 +14,7 @@ output:
 <script>
    $(document).ready(function() {
      $head = $('#header');
-     $head.prepend('<img src=\"logo.png\" style=\"float: right;width: 250px;\"/>')
+     $head.prepend('<img src=\"layout/logo.png\" style=\"float: right;width: 250px;\"/>')
    });
 </script>
 
@@ -35,6 +35,7 @@ library(maptools)
 library(spdep)
 library(leaflet)
 library(RColorBrewer)
+library(raster)
 
 # Function to get the earth distance beetween two points in the map
 earth.dist <- function (long1, lat1, long2, lat2)
@@ -64,9 +65,9 @@ RMSE <- function(observed, predicted) {
 
 ```{r}
 # Load Costa Rica Cantones
-Cantones.sf <- sf::st_read("Cantones_de_Costa_Rica.shp") 
+Cantones.sf <- sf::st_read("data/Cantones_de_Costa_Rica.shp") 
 
-path <- "Cantones_de_Costa_Rica.shp"
+path <- "data/Cantones_de_Costa_Rica.shp"
 Cantones <- shapefile(path)
 
 Cantones.sf<-Cantones.sf %>% sf::st_transform(crs = sf::st_crs(4326))
@@ -74,17 +75,17 @@ Cantones.sf<-Cantones.sf %>% sf::st_transform(crs = sf::st_crs(4326))
 #perdidas
 
 
-perdidas<-read.csv(file = "datos_perdida.csv",sep=";",dec=",", check.names = F, encoding = "UTF-8")
+perdidas<-read.csv(file = "data/perdidas.csv",sep=",",dec=",", check.names = F, encoding = "UTF-8")
 names(perdidas)<-iconv(names(perdidas), to = "ASCII", sub = "")
 dim(perdidas)
 head(perdidas)
 
-perdidas$p<-as.factor(perdidas$p)
-perdidas$c<-as.factor(perdidas$c)
+perdidas$P<-as.factor(perdidas$P)
+perdidas$C<-as.factor(perdidas$C)
 
-perd_cantones_sf<-Cantones.sf %>% left_join(perdidas %>% dplyr::select(-"perdida"), 
-                                by=c("COD_PROV"="p",
-                                     "COD_CANT"="c"))
+perd_cantones_sf<-Cantones.sf %>% left_join(perdidas %>% dplyr::select(-"Perdida"), 
+                                by=c("COD_PROV"="P",
+                                     "COD_CANT"="C"))
 
 perd_cantones<-as(perd_cantones_sf, 'Spatial')
 
