@@ -27,6 +27,7 @@ output:
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(comment=" ",cache=T)
 
+library(sp)
 library(sf)
 library(spData)
 library(tidyverse)
@@ -80,12 +81,13 @@ names(perdidas)<-iconv(names(perdidas), to = "ASCII", sub = "")
 dim(perdidas)
 head(perdidas)
 
-perdidas$P<-as.factor(perdidas$P)
-perdidas$C<-as.factor(perdidas$C)
+perdidas$id_provincia<-as.factor(perdidas$id_provincia)
+perdidas$id_canton<-as.factor(perdidas$id_canton)
 
-perd_cantones_sf<-Cantones.sf %>% left_join(perdidas %>% dplyr::select(-"Perdida"), 
-                                by=c("COD_PROV"="P",
-                                     "COD_CANT"="C"))
+perd_cantones_sf<-Cantones.sf %>% left_join(perdidas %>% dplyr::select(-"perdida"), 
+                                by=c("COD_PROV"="id_provincia",
+                                     "COD_CANT"="id_canton"))
+
 
 perd_cantones<-as(perd_cantones_sf, 'Spatial')
 
@@ -99,7 +101,6 @@ projection(perd_cantones)=projection(Cantones)
 perd_cantones@bbox<-as.matrix(rbind(c(-85.97907,-82.55232),c(8.039627,11.21976)))
 
 perd_cantones_sf<-sf::st_as_sf(perd_cantones)
-
 
 ```
 
