@@ -165,6 +165,7 @@ summary(regresion)
 list.queen<-poly2nb(perd_cantones, queen=TRUE)
 W<-nb2listw(list.queen, style="W", zero.policy=TRUE)
 W
+
 ```
 
 Para observar los enlaces de vecinos creados, se puede utlizar la finción `plot`:
